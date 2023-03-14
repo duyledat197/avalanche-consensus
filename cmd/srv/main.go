@@ -34,19 +34,18 @@ func load(ctx context.Context) error {
 	if err := srv.loadDatabaseClients(ctx); err != nil {
 		logger.Fatal(err)
 	}
-	logger.Println("loadDatabaseClients")
+	if err := srv.migrate(); err != nil {
+		logger.Fatal(err)
+	}
 	if err := srv.loadRepositories(); err != nil {
 		logger.Fatal(err)
 	}
-	logger.Println("loadRepositories")
 	if err := srv.loadDomains(); err != nil {
 		log.Fatal(err)
 	}
-	logger.Println("loadDomains")
 	if err := srv.loadDeliveries(); err != nil {
 		log.Fatal(err)
 	}
-	logger.Println("loadDeliveries")
 
 	if err := srv.loadServers(ctx); err != nil {
 		log.Fatal(err)
@@ -66,6 +65,7 @@ func start(ctx context.Context) error {
 	for _, p := range srv.processors {
 		go func(p processor) {
 			if err := p.Init(ctx); err != nil {
+				logger.Println(err)
 				errChan <- err
 			}
 			if err := p.Start(ctx); err != nil {

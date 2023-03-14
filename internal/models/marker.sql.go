@@ -9,7 +9,7 @@ import (
 	"context"
 )
 
-const getByBlockID = `-- name: GetByBlockID :one
+const getMarkerByBlockID = `-- name: GetMarkerByBlockID :one
 SELECT
   block_id, created_at, updated_at, deleted_at
 FROM
@@ -18,8 +18,8 @@ WHERE
   block_id = $1
 `
 
-func (q *Queries) GetByBlockID(ctx context.Context, blockID string) (*Marker, error) {
-	row := q.db.QueryRowContext(ctx, getByBlockID, blockID)
+func (q *Queries) GetMarkerByBlockID(ctx context.Context, blockID string) (*Marker, error) {
+	row := q.db.QueryRowContext(ctx, getMarkerByBlockID, blockID)
 	var i Marker
 	err := row.Scan(
 		&i.BlockID,

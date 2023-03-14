@@ -16,7 +16,10 @@ func NewBlockRepository(q *models.Queries) repositories.BlockRepository {
 }
 
 func (r *blockRepository) Create(ctx context.Context, block *models.Block) error {
-	panic("not implemented") // TODO: Implement
+	return r.q.CreateBlock(ctx, models.CreateBlockParams{
+		ID:   block.ID,
+		Data: block.Data,
+	})
 }
 
 func (r *blockRepository) GetByID(ctx context.Context, id string) (*models.Block, error) {
@@ -28,5 +31,5 @@ func (r *blockRepository) GetLatestBlock(ctx context.Context) (*models.Block, er
 }
 
 func (r *blockRepository) GetAll(ctx context.Context) ([]*models.Block, error) {
-	panic("not implemented") // TODO: Implement
+	return r.q.GetAllBlock(ctx)
 }

@@ -13,7 +13,7 @@ type Querier interface {
 	CreateNode(ctx context.Context, arg CreateNodeParams) error
 	GetAll(ctx context.Context) ([]*Node, error)
 	GetAllBlock(ctx context.Context) ([]*Block, error)
-	GetByBlockID(ctx context.Context, blockID string) (*Marker, error)
+	GetMarkerByBlockID(ctx context.Context, blockID string) (*Marker, error)
 	GetRandomNode(ctx context.Context, limit int32) ([]*Node, error)
 	MarkBlock(ctx context.Context, blockID string) error
 }

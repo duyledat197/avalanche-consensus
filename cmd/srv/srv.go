@@ -69,7 +69,7 @@ func (s *server) loadDatabaseClients(ctx context.Context) error {
 		logger.Fatal(err.Error())
 	}
 	file.Close()
-	db, _ := sql.Open("sqlite3", "./sqlite-database.db")
+	db, _ := sql.Open("sqlite3", dbFilePath)
 	if err != nil {
 		return err
 	}
@@ -83,7 +83,6 @@ func (s *server) migrate() error {
 	driver, err := sqlite3.WithInstance(s.db, &sqlite3.Config{})
 	if err != nil {
 		logger.Fatal(err)
-		return err
 	}
 	migrationPath := "file://./database/migrations"
 	m, err := migrate.NewWithDatabaseInstance(
@@ -93,7 +92,6 @@ func (s *server) migrate() error {
 		return err
 	}
 
-	defer m.Close()
 	if err := m.Up(); err != nil {
 		logger.Println(err)
 		return err
@@ -122,7 +120,7 @@ func (s *server) loadDomains() error {
 }
 
 func (s *server) loadDeliveries() error {
-	s.blockchainDelivery = tcp.NewBlockchainDelivery(s.blockchainDomain)
+	s.blockchainDelivery = tcp.NewBlockchainDelivery(s.blockchainDomain, logger)
 	return nil
 }
 

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/sisu-network/interview/configs"
@@ -16,8 +17,8 @@ import (
 
 type BlockchainDomain interface {
 	Validate(ctx context.Context, data []int) error
-	SnowBall(ctx context.Context, blockID string, data []int) error
-	PingNeighbourNodes(ctx context.Context, blockID string)
+	SnowBall(ctx context.Context, req *models.Request) error
+	PingNeighbourNodes(ctx context.Context, req *models.Request)
 }
 
 type blockchainDomain struct {
@@ -73,79 +74,93 @@ func (d *blockchainDomain) Validate(ctx context.Context, data []int) error {
 	return nil
 }
 
-func (d *blockchainDomain) PingNeighbourNodes(ctx context.Context, blockID string) {
-	_, err := d.markerRepo.GetByBlockID(ctx, blockID)
+func (d *blockchainDomain) PingNeighbourNodes(ctx context.Context, req *models.Request) {
+	_, err := d.markerRepo.GetByBlockID(ctx, req.BlockID)
 	if err != nil {
 		d.logger.Printf("unable to get block: %v", err)
 		return
 	}
-	if err := d.markerRepo.MarkBlock(ctx, blockID); err != nil {
+	if err := d.markerRepo.MarkBlock(ctx, req.BlockID); err != nil {
 		d.logger.Printf("unable to mark block: %v", err)
 		return
 	}
 	nodes, err := d.nodeRepo.GetAll(ctx)
 	if err != nil {
-		log.Printf("unable to get nodes: %v", err)
+		d.logger.Printf("unable to get nodes: %v", err)
 		return
 	}
+	var wg sync.WaitGroup
 	for _, node := range nodes {
-		go func() {
-			conn, err := net.Dial("tcp", node.Address)
+		if node.Address == ":"+d.configs.Tcp.Port {
+			continue
+		}
+		wg.Add(1)
+		go func(addr string) {
+			defer wg.Done()
+			conn, err := net.Dial("tcp", addr)
 			if err != nil {
-				log.Printf("unable to connect %s: %v", node.Address, err)
+				d.logger.Printf("unable to connect %s: %v", addr, err)
 				return
 			}
 			defer conn.Close()
-			var (
-				req models.Request
-			)
+
 			b, _ := json.Marshal(&req)
 			if _, err := conn.Write(b); err != nil {
 				d.logger.Printf("unable to write data : %v", err)
 				return
 			}
-		}()
+		}(node.Address)
 	}
+	wg.Wait()
 }
 
-func (d *blockchainDomain) SnowBall(ctx context.Context, blockID string, data []int) error {
+func (d *blockchainDomain) SnowBall(ctx context.Context, req *models.Request) error {
 	preference := false
 	consecutiveSuccesses := 0
-	mutex := &sync.Mutex{}
-	wg := &sync.WaitGroup{}
+	wg := sync.WaitGroup{}
 
 	startTime := time.Now()
 
 	for {
+		d.logger.Printf("consecutiveSuccesses=%d\n", consecutiveSuccesses)
 		if time.Since(startTime) > 10*time.Second {
+			d.logger.Println("more than 10s")
 			break
 		}
 		chosenNodes, err := d.nodeRepo.GetRandom(ctx, d.configs.SampleSize)
 		if err != nil {
-			d.logger.Printf("error choosing nodes: %v\n", err)
-			time.Sleep(1 * time.Second)
 			continue
 		}
-		totalAccept := 0
-		totalDecline := 0
+		totalAccept := int32(0)
+		totalDecline := int32(0)
 		for _, node := range chosenNodes {
+			if node.Address == ":"+d.configs.Tcp.Port {
+				continue
+			}
 			wg.Add(1)
-
 			go func(ctx context.Context, addr string) {
 				defer wg.Done()
+
 				conn, err := net.Dial("tcp", addr)
 				if err != nil {
-					d.logger.Printf("unable to connect %s: %w", addr, err)
+					d.logger.Printf("unable to connect %s: %v", addr, err)
 					return
 				}
 				defer conn.Close()
 				var (
-					req  models.Request
-					resp models.Response
+					request models.Request
+					resp    models.Response
 				)
-				b, _ := json.Marshal(&req)
+				request = *req
+				request.Event = models.ValidateEvent
+				b, err := json.Marshal(&request)
+				if err != nil {
+					d.logger.Printf("unable to marshal : %v", err)
+					return
+
+				}
 				if _, err := conn.Write(b); err != nil {
-					d.logger.Printf("unable to write data : %w", err)
+					d.logger.Printf("unable to write data : %v", err)
 					return
 				}
 
@@ -156,22 +171,26 @@ func (d *blockchainDomain) SnowBall(ctx context.Context, blockID string, data []
 					return
 				}
 
-				json.Unmarshal(data[:n], &resp)
+				if err := json.Unmarshal(data[:n], &resp); err != nil {
+					d.logger.Printf("unable to unmarshal :%v\n", err)
+					return
+				}
 				if resp.Err != nil {
 					d.logger.Printf("unable to unmarshal :%v\n", err)
+					return
 				}
 
-				mutex.Lock()
 				if resp.IsAccept {
-					totalAccept += 1
+					atomic.AddInt32(&totalAccept, 1)
 				} else {
-					totalDecline += 1
+					atomic.AddInt32(&totalDecline, 1)
 				}
-				mutex.Unlock()
 			}(ctx, node.Address)
 		}
 		wg.Wait()
-		if totalAccept < d.configs.QuorumSize && totalDecline < d.configs.QuorumSize {
+		time.Sleep(1 * time.Second)
+		d.logger.Printf("totalAccept=%d totalDecline=%d\n", totalAccept, totalDecline)
+		if int(totalAccept) < d.configs.QuorumSize && int(totalDecline) < d.configs.QuorumSize {
 			consecutiveSuccesses = 0
 			continue
 		}
@@ -184,20 +203,21 @@ func (d *blockchainDomain) SnowBall(ctx context.Context, blockID string, data []
 		}
 
 		if consecutiveSuccesses >= d.configs.DecisionThreshHold {
-			d.decide(ctx, blockID, data)
+			d.decide(ctx, req)
 			break
 		}
 	}
 	return nil
 }
 
-func (d *blockchainDomain) decide(ctx context.Context, blockID string, data []int) {
+func (d *blockchainDomain) decide(ctx context.Context, req *models.Request) {
 	var nums []int32
-	for _, num := range data {
+	for _, num := range req.Data {
 		nums = append(nums, int32(num))
 	}
+	d.logger.Println(nums)
 	d.blockRepo.Create(ctx, &models.Block{
-		ID:   blockID,
+		ID:   req.BlockID,
 		Data: nums,
 	})
 }

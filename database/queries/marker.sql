@@ -4,7 +4,7 @@ INSERT INTO
 VALUES
   ($1) RETURNING *;
 
--- name: GetByBlockID :one
+-- name: GetMarkerByBlockID :one
 SELECT
   *
 FROM
