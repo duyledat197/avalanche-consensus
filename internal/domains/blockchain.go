@@ -25,6 +25,7 @@ type blockchainDomain struct {
 	blockRepo  repositories.BlockRepository
 	markerRepo repositories.MarkerRepository
 	configs    *configs.Config
+	logger     *log.Logger
 }
 
 func NewBlockchainDomain(
@@ -32,8 +33,14 @@ func NewBlockchainDomain(
 	blockRepo repositories.BlockRepository,
 	markerRepo repositories.MarkerRepository,
 	configs *configs.Config,
+	logger *log.Logger,
 ) BlockchainDomain {
-	return &blockchainDomain{nodeRepo, blockRepo, markerRepo, configs}
+	return &blockchainDomain{nodeRepo: nodeRepo,
+		blockRepo:  blockRepo,
+		markerRepo: markerRepo,
+		configs:    configs,
+		logger:     logger,
+	}
 }
 
 func (d *blockchainDomain) checkValid(ctx context.Context, source []int32, target []int) error {
@@ -69,11 +76,11 @@ func (d *blockchainDomain) Validate(ctx context.Context, data []int) error {
 func (d *blockchainDomain) PingNeighbourNodes(ctx context.Context, blockID string) {
 	_, err := d.markerRepo.GetByBlockID(ctx, blockID)
 	if err != nil {
-		log.Printf("unable to get block: %v", err)
+		d.logger.Printf("unable to get block: %v", err)
 		return
 	}
 	if err := d.markerRepo.MarkBlock(ctx, blockID); err != nil {
-		log.Printf("unable to mark block: %v", err)
+		d.logger.Printf("unable to mark block: %v", err)
 		return
 	}
 	nodes, err := d.nodeRepo.GetAll(ctx)
@@ -94,7 +101,7 @@ func (d *blockchainDomain) PingNeighbourNodes(ctx context.Context, blockID strin
 			)
 			b, _ := json.Marshal(&req)
 			if _, err := conn.Write(b); err != nil {
-				log.Printf("unable to write data : %v", err)
+				d.logger.Printf("unable to write data : %v", err)
 				return
 			}
 		}()
@@ -115,7 +122,7 @@ func (d *blockchainDomain) SnowBall(ctx context.Context, blockID string, data []
 		}
 		chosenNodes, err := d.nodeRepo.GetRandom(ctx, d.configs.SampleSize)
 		if err != nil {
-			log.Printf("error choosing nodes: %v\n", err)
+			d.logger.Printf("error choosing nodes: %v\n", err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -128,7 +135,7 @@ func (d *blockchainDomain) SnowBall(ctx context.Context, blockID string, data []
 				defer wg.Done()
 				conn, err := net.Dial("tcp", addr)
 				if err != nil {
-					log.Printf("unable to connect %s: %w", addr, err)
+					d.logger.Printf("unable to connect %s: %w", addr, err)
 					return
 				}
 				defer conn.Close()
@@ -138,20 +145,20 @@ func (d *blockchainDomain) SnowBall(ctx context.Context, blockID string, data []
 				)
 				b, _ := json.Marshal(&req)
 				if _, err := conn.Write(b); err != nil {
-					log.Printf("unable to write data : %w", err)
+					d.logger.Printf("unable to write data : %w", err)
 					return
 				}
 
 				data := make([]byte, 1024)
 				n, err := conn.Read(data)
 				if err != nil {
-					log.Printf("unable to reading :%v\n", err)
+					d.logger.Printf("unable to reading :%v\n", err)
 					return
 				}
 
 				json.Unmarshal(data[:n], &resp)
 				if resp.Err != nil {
-					log.Printf("unable to unmarshal :%v\n", err)
+					d.logger.Printf("unable to unmarshal :%v\n", err)
 				}
 
 				mutex.Lock()

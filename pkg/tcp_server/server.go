@@ -15,10 +15,11 @@ type TcpServer struct {
 	Addr     configs.ConnectionAddr
 	listener net.Listener
 	Handlers map[models.Event]func(ctx context.Context, req *models.Request) (*models.Response, error)
+	Logger   *log.Logger
 }
 
 func (s *TcpServer) Init(ctx context.Context) error {
-	log.Printf("tcp listen on port: %v", s.Addr.Port)
+	s.Logger.Printf("tcp listen on port: %v", s.Addr.Port)
 	l, err := net.Listen("tcp", s.Addr.GetConnectionString())
 	if err != nil {
 		return fmt.Errorf("unable to connect tcp address: %s", s.Addr.GetConnectionString())
@@ -67,7 +68,7 @@ func (s *TcpServer) Stop(ctx context.Context) error {
 	return s.listener.Close()
 }
 
-func (c *TcpServer) throwError(conn net.Conn, err error) {
-	log.Println(err)
+func (s *TcpServer) throwError(conn net.Conn, err error) {
+	s.Logger.Println(err)
 	conn.Close()
 }

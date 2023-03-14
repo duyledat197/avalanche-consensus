@@ -1,9 +1,15 @@
 #!/bin/bash
 
-export PORT=9090
-export MAX_NODES=50
+export MAX_NODES=5
 export SAMPLE_SIZE=10
 export QUORUM_SIZE=14
 export DECISION_THRESHOLD=20
 
-go run ./cmd/srv/.
+for ((i = 0; i < MAX_NODES; i++)); do
+  export PORT=$((9000 + $i))
+  export NODE_ID=$((9000 + $i))
+  go run ./cmd/srv/. &
+done
+
+wait
+sleep 10

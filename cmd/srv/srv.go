@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -15,9 +16,10 @@ import (
 	"github.com/sisu-network/interview/internal/repositories/sqlite"
 	"github.com/sisu-network/interview/pkg/tcp_server"
 
+	"github.com/golang-migrate/migrate/v4"
+	"github.com/golang-migrate/migrate/v4/database/sqlite3"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	_ "github.com/mattn/go-sqlite3"
-
-	"go.uber.org/zap"
 )
 
 type server struct {
@@ -40,11 +42,10 @@ type server struct {
 	//* config
 	config *configs.Config
 
-	//* logger
-	logger *zap.Logger
-
 	processors []processor
 	factories  []factory
+
+	logFile *os.File
 }
 
 type processor interface {
@@ -59,29 +60,47 @@ type factory interface {
 }
 
 func (s *server) loadDatabaseClients(ctx context.Context) error {
-	os.Remove("sqlite-database.db") // I delete the file to avoid duplicated records.
+	dbFilePath := fmt.Sprintf("data/%s.db", s.config.NodeID)
+	os.Remove(dbFilePath) // I delete the file to avoid duplicated records.
 	// SQLite is a file based database.
 
-	log.Println("Creating sqlite-database.db...")
-	file, err := os.Create("sqlite-database.db") // Create SQLite file
+	file, err := os.Create(dbFilePath) // Create SQLite file
 	if err != nil {
-		log.Fatal(err.Error())
+		logger.Fatal(err.Error())
 	}
 	file.Close()
-	log.Println("sqlite-database.db created")
-
 	db, _ := sql.Open("sqlite3", "./sqlite-database.db")
 	if err != nil {
 		return err
 	}
+
 	s.db = db
+	return nil
+
+}
+
+func (s *server) migrate() error {
+	driver, err := sqlite3.WithInstance(s.db, &sqlite3.Config{})
+	if err != nil {
+		logger.Fatal(err)
+		return err
+	}
+	migrationPath := "file://./database/migrations"
+	m, err := migrate.NewWithDatabaseInstance(
+		migrationPath,
+		"sqlite3", driver)
+	if err != nil {
+		return err
+	}
+
+	defer m.Close()
+	if err := m.Up(); err != nil {
+		logger.Println(err)
+		return err
+	}
 	return nil
 }
 
-func (s *server) loadLogger() error {
-	// s.logger = logger.NewZapLogger("INFO", true)
-	return nil
-}
 func (s *server) loadRepositories() error {
 
 	q := models.New(s.db)
@@ -92,7 +111,13 @@ func (s *server) loadRepositories() error {
 }
 
 func (s *server) loadDomains() error {
-	s.blockchainDomain = domains.NewBlockchainDomain(s.nodeRepo, s.blockRepo, s.markerRepo, s.config)
+	s.blockchainDomain = domains.NewBlockchainDomain(
+		s.nodeRepo,
+		s.blockRepo,
+		s.markerRepo,
+		s.config,
+		logger,
+	)
 	return nil
 }
 
@@ -107,6 +132,7 @@ func (s *server) loadConfig(ctx context.Context) error {
 	s.config.QuorumSize, _ = strconv.Atoi(os.Getenv("QUORUM_SIZE"))
 	s.config.DecisionThreshHold, _ = strconv.Atoi(os.Getenv("DECISION_THRESHOLD"))
 	s.config.Tcp.Port = os.Getenv("PORT")
+	s.config.NodeID = os.Getenv("NODE_ID")
 	return nil
 }
 
@@ -119,7 +145,19 @@ func (s *server) loadServers(ctx context.Context) error {
 			models.PingEvent:     s.blockchainDelivery.RetrievePingEvent,
 			models.ValidateEvent: s.blockchainDelivery.ValidateData,
 		},
+		Logger: logger,
 	}
 	s.processors = append(s.processors, s.tcpServer)
+	return nil
+}
+
+func (s *server) loadLogger(ctx context.Context) error {
+	filePath := fmt.Sprintf("./logs/%s.log", s.config.NodeID)
+	logFile, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	logger = log.New(logFile, "app ", log.LstdFlags)
 	return nil
 }

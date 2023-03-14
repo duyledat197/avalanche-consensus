@@ -59,6 +59,7 @@ type Storage struct {
 }
 
 type Config struct {
+	NodeID             string
 	SampleSize         int
 	QuorumSize         int
 	DecisionThreshHold int

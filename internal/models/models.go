@@ -9,12 +9,12 @@ import (
 )
 
 type Block struct {
-	ID        string        `db:"id" json:"id"`
-	Data      []int32       `db:"data" json:"data"`
-	Height    sql.NullInt32 `db:"height" json:"height"`
-	CreatedAt sql.NullTime  `db:"created_at" json:"created_at"`
-	UpdatedAt sql.NullTime  `db:"updated_at" json:"updated_at"`
-	DeletedAt sql.NullTime  `db:"deleted_at" json:"deleted_at"`
+	ID        string       `db:"id" json:"id"`
+	Data      []int32      `db:"data" json:"data"`
+	Height    interface{}  `db:"height" json:"height"`
+	CreatedAt sql.NullTime `db:"created_at" json:"created_at"`
+	UpdatedAt sql.NullTime `db:"updated_at" json:"updated_at"`
+	DeletedAt sql.NullTime `db:"deleted_at" json:"deleted_at"`
 }
 
 type Marker struct {
