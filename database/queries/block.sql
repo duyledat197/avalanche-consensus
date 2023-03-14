@@ -1,9 +1,14 @@
--- name: GetLatestBlock :many
+-- name: GetAllBlock :many
 SELECT
-  *
+    *
 FROM
-  blocks
+    blocks
 ORDER BY
-  created_at
-LIMIT
-  $1;
+    height DESC;
+
+
+-- name: CreateBlock :exec
+INSERT INTO
+    blocks (id, data)
+VALUES
+    ($1, $2) RETURNING *;

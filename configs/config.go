@@ -59,7 +59,10 @@ type Storage struct {
 }
 
 type Config struct {
-	SampleSize int
-	QuorumSize int
-	ThreshHold int
+	SampleSize         int
+	QuorumSize         int
+	DecisionThreshHold int
+
+	Tcp ConnectionAddr
+	DB  Database
 }

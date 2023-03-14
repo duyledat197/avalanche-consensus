@@ -18,6 +18,7 @@ type TcpServer struct {
 }
 
 func (s *TcpServer) Init(ctx context.Context) error {
+	log.Printf("tcp listen on port: %v", s.Addr.Port)
 	l, err := net.Listen("tcp", s.Addr.GetConnectionString())
 	if err != nil {
 		return fmt.Errorf("unable to connect tcp address: %s", s.Addr.GetConnectionString())

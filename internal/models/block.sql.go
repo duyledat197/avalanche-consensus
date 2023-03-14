@@ -11,19 +11,34 @@ import (
 	"github.com/lib/pq"
 )
 
-const getLatestBlock = `-- name: GetLatestBlock :many
-SELECT
-  id, data, created_at, updated_at, deleted_at
-FROM
-  blocks
-ORDER BY
-  created_at
-LIMIT
-  $1
+const createBlock = `-- name: CreateBlock :exec
+INSERT INTO
+    blocks (id, data)
+VALUES
+    ($1, $2) RETURNING id, data, height, created_at, updated_at, deleted_at
 `
 
-func (q *Queries) GetLatestBlock(ctx context.Context, limit int32) ([]*Block, error) {
-	rows, err := q.db.QueryContext(ctx, getLatestBlock, limit)
+type CreateBlockParams struct {
+	ID   string  `db:"id" json:"id"`
+	Data []int32 `db:"data" json:"data"`
+}
+
+func (q *Queries) CreateBlock(ctx context.Context, arg CreateBlockParams) error {
+	_, err := q.db.ExecContext(ctx, createBlock, arg.ID, pq.Array(arg.Data))
+	return err
+}
+
+const getAllBlock = `-- name: GetAllBlock :many
+SELECT
+    id, data, height, created_at, updated_at, deleted_at
+FROM
+    blocks
+ORDER BY
+    height DESC
+`
+
+func (q *Queries) GetAllBlock(ctx context.Context) ([]*Block, error) {
+	rows, err := q.db.QueryContext(ctx, getAllBlock)
 	if err != nil {
 		return nil, err
 	}
@@ -34,6 +49,7 @@ func (q *Queries) GetLatestBlock(ctx context.Context, limit int32) ([]*Block, er
 		if err := rows.Scan(
 			&i.ID,
 			pq.Array(&i.Data),
+			&i.Height,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.DeletedAt,

@@ -8,6 +8,5 @@ import (
 
 type BlockRepository interface {
 	Create(ctx context.Context, block *models.Block) error
-	GetByID(ctx context.Context, id string) (*models.Block, error)
-	GetLatestBlock(ctx context.Context) (*models.Block, error)
+	GetAll(ctx context.Context) ([]*models.Block, error)
 }

@@ -11,6 +11,10 @@ type nodeRepository struct {
 	q *models.Queries
 }
 
+func NewNodeRepository(q *models.Queries) repositories.NodeRepository {
+	return &nodeRepository{q: q}
+}
+
 func (r *nodeRepository) GetRandom(ctx context.Context, ra int) ([]*models.Node, error) {
 	return r.q.GetRandomNode(ctx, int32(ra))
 }
@@ -24,10 +28,4 @@ func (r *nodeRepository) Create(ctx context.Context, node *models.Node) error {
 
 func (r *nodeRepository) GetAll(ctx context.Context) ([]*models.Node, error) {
 	return r.q.GetAll(ctx)
-}
-
-func NewNodeRepository(q *models.Queries) repositories.NodeRepository {
-	return &nodeRepository{
-		q,
-	}
 }

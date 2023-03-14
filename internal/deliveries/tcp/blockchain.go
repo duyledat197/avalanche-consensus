@@ -16,6 +16,12 @@ type blockchainDelivery struct {
 	blockchainDomain domains.BlockchainDomain
 }
 
+func NewBlockchainDelivery(blockchainDomain domains.BlockchainDomain) BlockchainDelivery {
+	return &blockchainDelivery{
+		blockchainDomain: blockchainDomain,
+	}
+}
+
 func (d *blockchainDelivery) RetrievePingEvent(ctx context.Context, req *models.Request) (*models.Response, error) {
 	if err := d.blockchainDomain.SnowBall(ctx, req.BlockID, req.Data); err != nil {
 		return nil, err

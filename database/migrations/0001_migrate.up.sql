@@ -8,7 +8,8 @@ CREATE TABLE IF NOT EXISTS nodes (
 
 CREATE TABLE IF NOT EXISTS blocks (
   id text PRIMARY KEY PRIMARY KEY,
-  DATA INT [ ],
+  data INTEGER[],
+  height SERIAL,
   created_at timestamptz,
   updated_at timestamptz NULL,
   deleted_at timestamptz

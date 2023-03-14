@@ -36,23 +36,31 @@ func NewBlockchainDomain(
 	return &blockchainDomain{nodeRepo, blockRepo, markerRepo, configs}
 }
 
-func (d *blockchainDomain) Validate(ctx context.Context, data []int) error {
-	block, err := d.blockRepo.GetLatestBlock(ctx)
-	if err != nil {
-		return err
-	}
-
+func (d *blockchainDomain) checkValid(ctx context.Context, source []int32, target []int) error {
 	m := make(map[int]int)
-	for pos, num := range block.Data {
+	for pos, num := range source {
 		m[int(num)] = pos
 	}
 	pointer := -1
-	for _, num := range data {
+	for _, num := range target {
 		if _, ok := m[num]; ok {
 			if m[num] < pointer {
 				return fmt.Errorf("wrong position")
 			}
 			pointer = m[num]
+		}
+	}
+	return nil
+}
+
+func (d *blockchainDomain) Validate(ctx context.Context, data []int) error {
+	blocks, err := d.blockRepo.GetAll(ctx)
+	if err != nil {
+		return err
+	}
+	for _, block := range blocks {
+		if err := d.checkValid(ctx, block.Data, data); err != nil {
+			return fmt.Errorf("data is not valid")
 		}
 	}
 	return nil
@@ -168,7 +176,7 @@ func (d *blockchainDomain) SnowBall(ctx context.Context, blockID string, data []
 			consecutiveSuccesses++
 		}
 
-		if consecutiveSuccesses >= d.configs.ThreshHold {
+		if consecutiveSuccesses >= d.configs.DecisionThreshHold {
 			d.decide(ctx, blockID, data)
 			break
 		}
