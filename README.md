@@ -1,3 +1,5 @@
+[Avalanche consensus](https://docs.avax.network/learn/avalanche/avalanche-consensus)
+
 # Architechture:
 
 ![clean architecture](https://raw.githubusercontent.com/phungvandat/clean-architecture/dev/images/clean-arch.png)
